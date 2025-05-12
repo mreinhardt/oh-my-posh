@@ -2,6 +2,7 @@ package segments
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/jandedobbeleer/oh-my-posh/src/properties"
@@ -12,6 +13,7 @@ type Aws struct {
 
 	Profile string
 	Region  string
+	RegionAlias string
 }
 
 const (
@@ -38,6 +40,7 @@ func (a *Aws) Enabled() bool {
 		return false
 	}
 	a.Region = getEnvFirstMatch("AWS_REGION", "AWS_DEFAULT_REGION")
+	a.RegionAlias = a.getRegionAlias(a.Region)
 	if a.Profile != "" && a.Region != "" {
 		return true
 	}
@@ -73,6 +76,7 @@ func (a *Aws) getConfigFileInfo() {
 			splitted := strings.Split(line, "=")
 			if len(splitted) >= 2 {
 				a.Region = strings.TrimSpace(splitted[1])
+				a.RegionAlias = a.getRegionAlias(a.Region)
 				break
 			}
 		}
@@ -80,4 +84,23 @@ func (a *Aws) getConfigFileInfo() {
 	if a.Profile == "" && a.Region != "" {
 		a.Profile = defaultUser
 	}
+}
+
+func (a *Aws) getRegionAlias(region string) string {
+	splitted := strings.Split(region, "-")
+	if len(splitted) < 2 || len(splitted) > 3 {
+		return region
+	}
+	// RegExp to convert cardinal regions to first letter aliases
+	// Ensures compounds like "southeast" are converted to "se"
+	cardinalSuffixRegex := regexp.MustCompile(`orth|outh|ast|est|entral`)
+	regionAlias := fmt.Sprintf(
+		"%s%s",
+		splitted[0],
+		cardinalSuffixRegex.ReplaceAllString(splitted[1], ""),
+	)
+	if len(splitted) == 3 {
+		regionAlias = fmt.Sprintf("%s%s", regionAlias, splitted[2])
+	}
+	return regionAlias
 }
